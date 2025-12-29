@@ -753,8 +753,8 @@ static int reiserfs_mknod(struct inode *dir, struct dentry *dentry, umode_t mode
 	inode->i_op = &reiserfs_special_inode_operations;
 	init_special_inode(inode, inode->i_mode, rdev);
 
-	/* FIXME: needed for block and char devices only */
-	reiserfs_update_sd(&th, inode);
+	if (S_ISCHR(inode->i_mode) || S_ISBLK(inode->i_mode))
+		reiserfs_update_sd(&th, inode);
 
 	reiserfs_update_inode_transaction(inode);
 	reiserfs_update_inode_transaction(dir);
