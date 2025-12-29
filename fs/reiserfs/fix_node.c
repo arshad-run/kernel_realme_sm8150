@@ -2626,9 +2626,11 @@ int fix_nodes(int op_mode, struct tree_balance *tb,
 	}
 #endif
 
-	if (get_mem_for_virtual_node(tb) == REPEAT_SEARCH)
-		/* FIXME: maybe -ENOMEM when tb->vn_buf == 0? Now just repeat */
+	if (get_mem_for_virtual_node(tb) == REPEAT_SEARCH) {
+		if (!tb->vn_buf)
+			return -ENOMEM;
 		return REPEAT_SEARCH;
+	}
 
 	/* Starting from the leaf level; for all levels h of the tree. */
 	for (h = 0; h < MAX_HEIGHT && tb->insert_size[h]; h++) {

@@ -1779,6 +1779,8 @@ int reiserfs_cut_from_item(struct reiserfs_transaction_handle *th,
 			reiserfs_warning(sb, "reiserfs-5092",
 					 "NO_DISK_SPACE");
 		unfix_nodes(&s_cut_balance);
+		if (ret_value == -ENOMEM)
+			return -ENOMEM;
 		return -EIO;
 	}
 
@@ -2169,7 +2171,12 @@ search_again:
 		do_balance(&s_paste_balance, NULL /*ih */ , body, M_PASTE);
 		return 0;
 	}
-	retval = (retval == NO_DISK_SPACE) ? -ENOSPC : -EIO;
+	if (retval == NO_DISK_SPACE)
+		retval = -ENOSPC;
+	else if (retval == -ENOMEM)
+		retval = -ENOMEM;
+	else
+		retval = -EIO;
 error_out:
 	/* this also releases the path */
 	unfix_nodes(&s_paste_balance);
@@ -2272,7 +2279,12 @@ search_again:
 		return 0;
 	}
 
-	retval = (retval == NO_DISK_SPACE) ? -ENOSPC : -EIO;
+	if (retval == NO_DISK_SPACE)
+		retval = -ENOSPC;
+	else if (retval == -ENOMEM)
+		retval = -ENOMEM;
+	else
+		retval = -EIO;
 error_out:
 	/* also releases the path */
 	unfix_nodes(&s_ins_balance);
