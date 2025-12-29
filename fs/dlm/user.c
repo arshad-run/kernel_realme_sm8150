@@ -678,10 +678,9 @@ static int device_close(struct inode *inode, struct file *file)
 	file->private_data = NULL;
 
 	dlm_put_lockspace(ls);
-	dlm_put_lockspace(ls);  /* for the find in device_open() */
-
-	/* FIXME: AUTOFREE: if this ls is no longer used do
-	   device_remove_lockspace() */
+	if (!dlm_put_lockspace(ls) &&  /* for the find in device_open() */
+	    (ls->ls_exflags & DLM_USER_LSFLG_AUTOFREE))
+		dlm_release_lockspace(ls->ls_local_handle, 0);
 
 	return 0;
 }
