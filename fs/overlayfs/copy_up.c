@@ -165,6 +165,71 @@ static int ovl_copy_up_data(struct path *old, struct path *new, loff_t len)
 	error = 0;
 
 	/* FIXME: copy up sparse files efficiently */
+	if (len) {
+		loff_t data_pos = vfs_llseek(old_file, 0, SEEK_DATA);
+
+		if (data_pos == -ENXIO) {
+			len = 0;
+		} else if (data_pos >= 0) {
+			while (len) {
+				loff_t hole_len;
+				loff_t data_end;
+
+				data_pos = vfs_llseek(old_file, old_pos, SEEK_DATA);
+				if (data_pos < 0) {
+					if (data_pos == -ENXIO) {
+						len = 0;
+						break;
+					}
+					error = data_pos;
+					goto out;
+				}
+
+				hole_len = data_pos - old_pos;
+				if (hole_len > len)
+					hole_len = len;
+
+				if (hole_len > 0) {
+					old_pos += hole_len;
+					new_pos += hole_len;
+					len -= hole_len;
+				}
+
+				if (len == 0)
+					break;
+
+				data_end = vfs_llseek(old_file, old_pos, SEEK_HOLE);
+				if (data_end < 0 || data_end > old_pos + len)
+					data_end = old_pos + len;
+
+				while (old_pos < data_end) {
+					size_t this_len = OVL_COPY_UP_CHUNK_SIZE;
+					long bytes;
+					loff_t chunk_len = data_end - old_pos;
+
+					if (chunk_len < this_len)
+						this_len = chunk_len;
+
+					if (signal_pending_state(TASK_KILLABLE, current)) {
+						error = -EINTR;
+						goto out;
+					}
+
+					bytes = do_splice_direct(old_file, &old_pos,
+								 new_file, &new_pos,
+								 this_len, SPLICE_F_MOVE);
+					if (bytes <= 0) {
+						error = bytes;
+						goto out;
+					}
+					WARN_ON(old_pos != new_pos);
+
+					len -= bytes;
+				}
+			}
+		}
+	}
+
 	while (len) {
 		size_t this_len = OVL_COPY_UP_CHUNK_SIZE;
 		long bytes;
