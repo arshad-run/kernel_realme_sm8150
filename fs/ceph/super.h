@@ -915,6 +915,9 @@ extern void ceph_add_cap(struct inode *inode,
 			 int fmode, unsigned issued, unsigned wanted,
 			 unsigned cap, unsigned seq, u64 realmino, int flags,
 			 struct ceph_cap **new_cap);
+extern void ceph_queue_cap_release(struct ceph_mds_session *session,
+				   u64 ino, u64 cap_id,
+				   u32 mseq, u32 seq);
 extern void __ceph_remove_cap(struct ceph_cap *cap, bool queue_release);
 extern void ceph_put_cap(struct ceph_mds_client *mdsc,
 			 struct ceph_cap *cap);

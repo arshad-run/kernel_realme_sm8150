@@ -4076,3 +4076,25 @@ int ceph_encode_dentry_release(void **p, struct dentry *dentry,
 	spin_unlock(&dentry->d_lock);
 	return ret;
 }
+
+void ceph_queue_cap_release(struct ceph_mds_session *session,
+			    u64 ino, u64 cap_id,
+			    u32 mseq, u32 seq)
+{
+	struct ceph_cap *cap;
+	struct ceph_mds_client *mdsc = session->s_mdsc;
+
+	cap = ceph_get_cap(mdsc, NULL);
+	if (!cap)
+		return;
+	cap->cap_ino = ino;
+	cap->queue_release = 1;
+	cap->cap_id = cap_id;
+	cap->mseq = mseq;
+	cap->seq = seq;
+	cap->issue_seq = seq;
+	spin_lock(&session->s_cap_lock);
+	list_add_tail(&cap->session_caps, &session->s_cap_releases);
+	session->s_num_cap_releases++;
+	spin_unlock(&session->s_cap_lock);
+}
