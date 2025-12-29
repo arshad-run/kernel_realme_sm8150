@@ -706,12 +706,6 @@ static int copy_result_to_user(struct dlm_user_args *ua, int compat,
 	memcpy(&result.lksb, &ua->lksb, offsetof(struct dlm_lksb, sb_lvbptr));
 	result.user_lksb = ua->user_lksb;
 
-	/* FIXME: dlm1 provides for the user's bastparam/addr to not be updated
-	   in a conversion unless the conversion is successful.  See code
-	   in dlm_user_convert() for updating ua from ua_tmp.  OpenVMS, though,
-	   notes that a new blocking AST address and parameter are set even if
-	   the conversion fails, so maybe we should just do that. */
-
 	if (flags & DLM_CB_BAST) {
 		result.user_astaddr = ua->bastaddr;
 		result.user_astparam = ua->bastparam;
