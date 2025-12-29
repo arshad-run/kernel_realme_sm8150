@@ -1218,9 +1218,12 @@ static int reiserfs_link(struct dentry *old_dentry, struct inode *dir,
 
 	reiserfs_write_lock(dir->i_sb);
 	if (inode->i_nlink >= REISERFS_LINK_MAX) {
-		/* FIXME: sd_nlink is 32 bit for new files */
-		reiserfs_write_unlock(dir->i_sb);
-		return -EMLINK;
+		/* sd_nlink is 32 bit for new files */
+		if (get_inode_sd_version(inode) == STAT_DATA_V1 ||
+		    inode->i_nlink >= U32_MAX) {
+			reiserfs_write_unlock(dir->i_sb);
+			return -EMLINK;
+		}
 	}
 
 	/* inc before scheduling so reiserfs_unlink knows we are here */
