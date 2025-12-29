@@ -1181,7 +1181,8 @@ static int dentry_lease_is_valid(struct dentry *dentry, unsigned int flags,
 	spin_unlock(&dentry->d_lock);
 
 	if (session) {
-		ceph_mdsc_lease_send_msg(session, dir, dentry,
+		ceph_mdsc_lease_send_msg(session, dir, dentry->d_name.name,
+					 dentry->d_name.len,
 					 CEPH_MDS_LEASE_RENEW, seq);
 		ceph_put_mds_session(session);
 	}

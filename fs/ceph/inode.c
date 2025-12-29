@@ -1411,16 +1411,37 @@ static int readdir_prepopulate_inodes_only(struct ceph_mds_request *req,
 		if (IS_ERR(in)) {
 			err = PTR_ERR(in);
 			dout("new_inode badness got %d\n", err);
-			continue;
+			if (rde->inode.cap.caps) {
+				ceph_queue_cap_release(session,
+					le64_to_cpu(rde->inode.in->ino),
+					le64_to_cpu(rde->inode.cap.cap_id),
+					le32_to_cpu(rde->inode.cap.mseq),
+					le32_to_cpu(rde->inode.cap.seq));
+			}
+		} else {
+			rc = fill_inode(in, NULL, &rde->inode, NULL, session,
+					req->r_request_started, -1,
+					&req->r_caps_reservation);
+			if (rc < 0) {
+				pr_err("fill_inode badness on %p got %d\n", in, rc);
+				err = rc;
+				if (rde->inode.cap.caps) {
+					ceph_queue_cap_release(session,
+						le64_to_cpu(rde->inode.in->ino),
+						le64_to_cpu(rde->inode.cap.cap_id),
+						le32_to_cpu(rde->inode.cap.mseq),
+						le32_to_cpu(rde->inode.cap.seq));
+				}
+			}
+			iput(in);
 		}
-		rc = fill_inode(in, NULL, &rde->inode, NULL, session,
-				req->r_request_started, -1,
-				&req->r_caps_reservation);
-		if (rc < 0) {
-			pr_err("fill_inode badness on %p got %d\n", in, rc);
-			err = rc;
+
+		if (rde->lease->duration_ms) {
+			ceph_mdsc_lease_send_msg(session,
+				d_inode(req->r_dentry), rde->name,
+				rde->name_len, CEPH_MDS_LEASE_RELEASE,
+				le32_to_cpu(rde->lease->seq));
 		}
-		iput(in);
 	}
 
 	return err;
@@ -1544,6 +1565,7 @@ int ceph_readdir_prepopulate(struct ceph_mds_request *req,
 	for (i = 0; i < rinfo->dir_nr; i++) {
 		struct ceph_mds_reply_dir_entry *rde = rinfo->dir_entries + i;
 		struct ceph_vino tvino, dvino;
+		bool success = false;
 
 		dname.name = rde->name;
 		dname.len = rde->name_len;
@@ -1598,6 +1620,15 @@ retry_lookup:
 				d_drop(dn);
 				dput(dn);
 				err = PTR_ERR(in);
+				/* if we failed to get inode, we need to release
+				 * the cap ourselves. */
+				if (rde->inode.cap.caps) {
+					ceph_queue_cap_release(session,
+						le64_to_cpu(rde->inode.in->ino),
+						le64_to_cpu(rde->inode.cap.cap_id),
+						le32_to_cpu(rde->inode.cap.mseq),
+						le32_to_cpu(rde->inode.cap.seq));
+				}
 				goto out;
 			}
 		}
@@ -1629,6 +1660,7 @@ retry_lookup:
 			if (IS_ERR(realdn)) {
 				err = PTR_ERR(realdn);
 				d_drop(dn);
+				iput(in);
 				goto next_item;
 			}
 			dn = realdn;
@@ -1646,7 +1678,23 @@ retry_lookup:
 			if (ret < 0)
 				err = ret;
 		}
+		success = true;
 next_item:
+		if (!success) {
+			if (ret < 0 && rde->inode.cap.caps) {
+				ceph_queue_cap_release(session,
+					le64_to_cpu(rde->inode.in->ino),
+					le64_to_cpu(rde->inode.cap.cap_id),
+					le32_to_cpu(rde->inode.cap.mseq),
+					le32_to_cpu(rde->inode.cap.seq));
+			}
+			if (rde->lease->duration_ms) {
+				ceph_mdsc_lease_send_msg(session,
+					d_inode(parent), rde->name,
+					rde->name_len, CEPH_MDS_LEASE_RELEASE,
+					le32_to_cpu(rde->lease->seq));
+			}
+		}
 		if (dn)
 			dput(dn);
 	}
@@ -1654,6 +1702,24 @@ out:
 	if (err == 0 && skipped == 0) {
 		set_bit(CEPH_MDS_R_DID_PREPOPULATE, &req->r_req_flags);
 		req->r_readdir_cache_idx = cache_ctl.index;
+	} else {
+		/* release caps/leases for the remaining entries */
+		for (; i < rinfo->dir_nr; i++) {
+			struct ceph_mds_reply_dir_entry *rde = rinfo->dir_entries + i;
+			if (rde->inode.cap.caps) {
+				ceph_queue_cap_release(session,
+					le64_to_cpu(rde->inode.in->ino),
+					le64_to_cpu(rde->inode.cap.cap_id),
+					le32_to_cpu(rde->inode.cap.mseq),
+					le32_to_cpu(rde->inode.cap.seq));
+			}
+			if (rde->lease->duration_ms) {
+				ceph_mdsc_lease_send_msg(session,
+					d_inode(parent), rde->name,
+					rde->name_len, CEPH_MDS_LEASE_RELEASE,
+					le32_to_cpu(rde->lease->seq));
+			}
+		}
 	}
 	ceph_readdir_cache_release(&cache_ctl);
 	dout("readdir_prepopulate done\n");

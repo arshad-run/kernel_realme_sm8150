@@ -3439,17 +3439,16 @@ bad:
 
 void ceph_mdsc_lease_send_msg(struct ceph_mds_session *session,
 			      struct inode *inode,
-			      struct dentry *dentry, char action,
+			      const char *dname, int dnamelen, char action,
 			      u32 seq)
 {
 	struct ceph_msg *msg;
 	struct ceph_mds_lease *lease;
 	int len = sizeof(*lease) + sizeof(u32);
-	int dnamelen = 0;
 
-	dout("lease_send_msg inode %p dentry %p %s to mds%d\n",
-	     inode, dentry, ceph_lease_op_name(action), session->s_mds);
-	dnamelen = dentry->d_name.len;
+	dout("lease_send_msg inode %p dentry %.*s %s to mds%d\n",
+	     inode, dnamelen, dname, ceph_lease_op_name(action),
+	     session->s_mds);
 	len += dnamelen;
 
 	msg = ceph_msg_new(CEPH_MSG_CLIENT_LEASE, len, GFP_NOFS, false);
@@ -3461,7 +3460,7 @@ void ceph_mdsc_lease_send_msg(struct ceph_mds_session *session,
 	lease->first = lease->last = cpu_to_le64(ceph_vino(inode).snap);
 	lease->seq = cpu_to_le32(seq);
 	put_unaligned_le32(dnamelen, lease + 1);
-	memcpy((void *)(lease + 1) + 4, dentry->d_name.name, dnamelen);
+	memcpy((void *)(lease + 1) + 4, dname, dnamelen);
 
 	/*
 	 * if this is a preemptive lease RELEASE, no need to
