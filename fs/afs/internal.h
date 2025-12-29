@@ -28,6 +28,10 @@
 
 #define AFS_CELL_MAX_ADDRS 15
 
+struct afs_root_cell {
+	char		name[AFS_MAXCELLNAME + 1];
+};
+
 struct pagevec;
 struct afs_call;
 
@@ -425,11 +429,13 @@ struct afs_uuid {
  */
 #ifdef CONFIG_AFS_FSCACHE
 extern struct fscache_netfs afs_cache_netfs;
+extern struct fscache_cookie_def afs_root_cell_cache_index_def;
 extern struct fscache_cookie_def afs_cell_cache_index_def;
 extern struct fscache_cookie_def afs_vlocation_cache_index_def;
 extern struct fscache_cookie_def afs_volume_cache_index_def;
 extern struct fscache_cookie_def afs_vnode_cache_index_def;
 #else
+#define afs_root_cell_cache_index_def	(*(struct fscache_cookie_def *) NULL)
 #define afs_cell_cache_index_def	(*(struct fscache_cookie_def *) NULL)
 #define afs_vlocation_cache_index_def	(*(struct fscache_cookie_def *) NULL)
 #define afs_volume_cache_index_def	(*(struct fscache_cookie_def *) NULL)
