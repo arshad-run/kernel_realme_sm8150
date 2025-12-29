@@ -368,11 +368,15 @@ struct dlm_ls *dlm_find_lockspace_device(int minor)
 	return ls;
 }
 
-void dlm_put_lockspace(struct dlm_ls *ls)
+int dlm_put_lockspace(struct dlm_ls *ls)
 {
+	int count;
+
 	spin_lock(&lslist_lock);
 	ls->ls_count--;
+	count = ls->ls_count;
 	spin_unlock(&lslist_lock);
+	return count;
 }
 
 static void remove_lockspace(struct dlm_ls *ls)
@@ -922,4 +926,3 @@ void dlm_stop_lockspaces(void)
 	if (count)
 		log_print("dlm user daemon left %d lockspaces", count);
 }
-
