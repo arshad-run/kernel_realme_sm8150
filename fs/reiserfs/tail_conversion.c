@@ -63,6 +63,28 @@ int direct2indirect(struct reiserfs_transaction_handle *th, struct inode *inode,
 	make_cpu_key(&end_key, inode, tail_offset, TYPE_INDIRECT, 4);
 
 	/* FIXME: we could avoid this */
+	if (PATH_LAST_POSITION(path) > 0) {
+		struct item_head *prev_ih;
+
+		prev_ih = tp_item_head(path) - 1;
+		if (prev_ih->ih_key.k_objectid == cpu_to_le32(inode->i_ino)) {
+			if (is_indirect_le_ih(prev_ih)) {
+				loff_t off = le_ih_k_offset(prev_ih);
+				int len = op_bytes_number(prev_ih,
+							  sb->s_blocksize);
+
+				if (off <= tail_offset &&
+				    off + len > tail_offset)
+					goto search;
+			} else if (!is_statdata_le_ih(prev_ih)) {
+				goto search;
+			}
+			PATH_LAST_POSITION(path)--;
+			goto item_found;
+		}
+	}
+
+search:
 	if (search_for_position_by_key(sb, &end_key, path) == POSITION_FOUND) {
 		reiserfs_error(sb, "PAP-14030",
 			       "pasted or inserted byte exists in "
@@ -71,6 +93,7 @@ int direct2indirect(struct reiserfs_transaction_handle *th, struct inode *inode,
 		return -EIO;
 	}
 
+item_found:
 	p_le_ih = tp_item_head(path);
 
 	unfm_ptr = cpu_to_le32(unbh->b_blocknr);
